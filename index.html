@@ -198,7 +198,7 @@ table.fish-table tbody tr.active {
 .cell-bite { font-weight: 700; color: var(--gold); text-align: center; }
 .cell-hookset { font-size: 0.82rem; color: var(--text-muted); }
 
-.cell-window { min-width: 160px; }
+.cell-window { min-width: 180px; }
 .window-rel {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 700;
@@ -216,6 +216,26 @@ table.fish-table tbody tr.active {
     font-size: 0.72rem;
     color: var(--text-muted);
     margin-top: 0.2rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* 2번째 윈도우 (작고 구분선 위) */
+.window-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.5rem 0 0.4rem;
+}
+.window-rel-2nd {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--gold-dim);
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+.window-abs-2nd {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    margin-top: 0.15rem;
     font-family: 'JetBrains Mono', monospace;
 }
 
@@ -290,6 +310,32 @@ table.fish-table tbody tr.active {
     font-size: 0.7rem;
     color: var(--text-muted);
     margin-top: 0.2rem;
+}
+
+.card-window-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0.45rem 0 0.35rem;
+}
+.card-cd-2nd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--gold-dim);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.card-cd-2nd.active {
+    color: var(--green-bright);
+}
+.card-cd-2nd.active::before {
+    content: '🟢 ';
+}
+.card-when-2nd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-top: 0.15rem;
 }
 
 .card-cond {
@@ -629,7 +675,7 @@ function matchesFish(fish, slotUnix) {
     return true;
 }
 
-function findNextWindow(fish, now) {
+function findWindows(fish, now, maxWindows = 2) {
     if (!ZONES[fish.zone]) {
         return { error: 'unknown-zone' };
     }
@@ -643,14 +689,43 @@ function findNextWindow(fish, now) {
     }
 
     const currentSlot = getSlotStartUnix(now);
-    // ~30일 lookahead — 매우 희귀한 조건 처리용
-    for (let i = 0; i < 1900; i++) {
+    const windows = [];
+    let inWindow = false;
+    let winStart = null;
+
+    // ~30일 lookahead
+    const totalSlots = 1900;
+    for (let i = 0; i < totalSlots; i++) {
         const slot = currentSlot + i * 1400;
-        if (matchesFish(fish, slot)) {
-            return { slot, isActive: i === 0 };
+        const matches = matchesFish(fish, slot);
+
+        if (matches && !inWindow) {
+            winStart = slot;
+            inWindow = true;
+        } else if (!matches && inWindow) {
+            // 윈도우 끝남 (이 슬롯은 안 맞음)
+            windows.push({
+                start: winStart,
+                end: slot,  // exclusive
+                isActive: winStart === currentSlot
+            });
+            inWindow = false;
+            if (windows.length >= maxWindows) return { windows };
         }
     }
-    return { error: 'no-match' };
+
+    // 30일 끝까지 윈도우 안에 있으면 잘려서 종료
+    if (inWindow) {
+        windows.push({
+            start: winStart,
+            end: currentSlot + totalSlots * 1400,
+            isActive: winStart === currentSlot,
+            truncated: true
+        });
+    }
+
+    if (windows.length === 0) return { error: 'no-match' };
+    return { windows };
 }
 
 /* ─── Format helpers ─────────────────── */
@@ -731,50 +806,78 @@ function escapeHtml(s) {
 function buildFishData(now) {
     return FISH.map(fish => ({
         fish,
-        next: findNextWindow(fish, now)
+        result: findWindows(fish, now, 2)
     })).sort((a, b) => {
         // 활성 fish가 가장 위로
-        const aActive = a.next?.isActive;
-        const bActive = b.next?.isActive;
+        const aActive = a.result.windows?.[0]?.isActive;
+        const bActive = b.result.windows?.[0]?.isActive;
         if (aActive && !bActive) return -1;
         if (!aActive && bActive) return 1;
         // 다음으로 시간이 가까운 것
-        const aSlot = a.next?.slot ?? Infinity;
-        const bSlot = b.next?.slot ?? Infinity;
+        const aSlot = a.result.windows?.[0]?.start ?? Infinity;
+        const bSlot = b.result.windows?.[0]?.start ?? Infinity;
         if (aSlot !== bSlot) return aSlot - bSlot;
         // 마지막은 원래 순서 유지 (조건 미상 등)
         return 0;
     });
 }
 
+// 윈도우 1개의 표시 텍스트 생성 (relative + absolute)
+// variant: 'primary' (큰 글자) | 'secondary' (작은 글자, "다음:" 접두어)
+function renderWindow(win, now, variant) {
+    const isPrimary = variant === 'primary';
+    const cdClass = isPrimary ? 'window-rel' : 'window-rel-2nd';
+    const absClass = isPrimary ? 'window-abs' : 'window-abs-2nd';
+    const prefix = isPrimary ? '' : '다음 ';
+
+    let cdText, activeClass = '';
+    if (win.isActive) {
+        const remaining = win.end - now;
+        cdText = `${formatCountdown(remaining)} 남음`;
+        activeClass = ' active';
+    } else {
+        const seconds = win.start - now;
+        cdText = `${prefix}${formatCountdown(seconds)} 뒤`;
+    }
+    const cdHtml = `<div class="${cdClass}${activeClass}">${escapeHtml(cdText)}</div>`;
+
+    let absText;
+    if (win.isActive) {
+        absText = `~ ${formatAbsoluteTime(win.end)} 까지`;
+    } else {
+        absText = formatAbsoluteTime(win.start);
+    }
+    const absHtml = `<div class="${absClass}">${escapeHtml(absText)}</div>`;
+
+    return cdHtml + absHtml;
+}
+
 function renderTable(data, now) {
     const tbody = document.getElementById('fish-tbody');
     let html = '';
-    for (const { fish, next } of data) {
-        const isActive = next?.isActive;
-        let cdHtml, whenHtml, rowClass = '';
+    for (const { fish, result } of data) {
+        let windowHtml, rowClass = '';
 
-        if (next?.error === 'unknown-zone') {
-            cdHtml = `<div class="window-rel" style="color:#e57373">지역명 오류</div>`;
-            whenHtml = `<div class="window-abs">'${escapeHtml(fish.zone)}' 미정의</div>`;
+        if (result.error === 'unknown-zone') {
+            windowHtml = `<div class="window-rel" style="color:#e57373">지역명 오류</div>`
+                       + `<div class="window-abs">'${escapeHtml(fish.zone)}' 미정의</div>`;
             rowClass = 'unknown';
-        } else if (next?.error === 'no-conditions') {
-            cdHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">조건 미상</div>`;
-            whenHtml = `<div class="window-abs">조건 확인 후 입력</div>`;
+        } else if (result.error === 'no-conditions') {
+            windowHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">조건 미상</div>`
+                       + `<div class="window-abs">조건 확인 후 입력</div>`;
             rowClass = 'unknown';
-        } else if (next?.error === 'no-match') {
-            cdHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">30일 내 없음</div>`;
-            whenHtml = `<div class="window-abs">날씨명 확인 필요</div>`;
+        } else if (result.error === 'no-match') {
+            windowHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">30일 내 없음</div>`
+                       + `<div class="window-abs">날씨명 확인 필요</div>`;
             rowClass = 'unknown';
-        } else if (isActive) {
-            const remaining = (next.slot + 1400) - now;
-            cdHtml = `<div class="window-rel active">${escapeHtml(formatCountdown(remaining))} 남음</div>`;
-            whenHtml = `<div class="window-abs">현재 슬롯 종료까지</div>`;
-            rowClass = 'active';
         } else {
-            const seconds = next.slot - now;
-            cdHtml = `<div class="window-rel">${escapeHtml(formatCountdown(seconds))} 뒤</div>`;
-            whenHtml = `<div class="window-abs">${escapeHtml(formatAbsoluteTime(next.slot))}</div>`;
+            const wins = result.windows;
+            if (wins[0].isActive) rowClass = 'active';
+            windowHtml = renderWindow(wins[0], now, 'primary');
+            if (wins.length >= 2) {
+                windowHtml += `<div class="window-divider"></div>`
+                            + renderWindow(wins[1], now, 'secondary');
+            }
         }
 
         html += `
@@ -789,31 +892,64 @@ function renderTable(data, now) {
             <td class="cell-bite-time">${escapeHtml(fish.biteTime || '—')}</td>
             <td class="cell-bite">${escapeHtml(fish.bite || '—')}</td>
             <td class="cell-hookset">${escapeHtml(fish.hookset || '—')}</td>
-            <td class="cell-window">${cdHtml}${whenHtml}</td>
+            <td class="cell-window">${windowHtml}</td>
         </tr>`;
     }
     tbody.innerHTML = html;
 }
 
+// 카드용 윈도우 렌더링 (CSS 클래스만 다름)
+function renderCardWindow(win, now, variant) {
+    const isPrimary = variant === 'primary';
+    const cdClass = isPrimary ? 'card-cd' : 'card-cd-2nd';
+    const whenClass = isPrimary ? 'card-when' : 'card-when-2nd';
+    const prefix = isPrimary ? '' : '다음 ';
+
+    let cdText, activeClass = '';
+    if (win.isActive) {
+        const remaining = win.end - now;
+        cdText = `${formatCountdown(remaining)} 남음`;
+        activeClass = ' active';
+    } else {
+        const seconds = win.start - now;
+        cdText = `${prefix}${formatCountdown(seconds)} 뒤`;
+    }
+    const cdHtml = `<div class="${cdClass}${activeClass}">${escapeHtml(cdText)}</div>`;
+
+    let whenText;
+    if (win.isActive) {
+        whenText = `~ ${formatAbsoluteTime(win.end)} 까지`;
+    } else {
+        whenText = formatAbsoluteTime(win.start);
+    }
+    const whenHtml = `<div class="${whenClass}">${escapeHtml(whenText)}</div>`;
+
+    return cdHtml + whenHtml;
+}
+
 function renderCards(data, now) {
     const container = document.getElementById('fish-cards');
     let html = '';
-    for (const { fish, next } of data) {
-        const isActive = next?.isActive;
-        let cdHtml, whenHtml;
-        if (next) {
-            if (isActive) {
-                const remaining = (next.slot + 1400) - now;
-                cdHtml = `<div class="card-cd active">${escapeHtml(formatCountdown(remaining))} 남음</div>`;
-                whenHtml = `<div class="card-when">현재 슬롯 종료까지</div>`;
-            } else {
-                const seconds = next.slot - now;
-                cdHtml = `<div class="card-cd">${escapeHtml(formatCountdown(seconds))} 뒤</div>`;
-                whenHtml = `<div class="card-when">${escapeHtml(formatAbsoluteTime(next.slot))}</div>`;
-            }
+    for (const { fish, result } of data) {
+        let windowHtml, isActive = false;
+
+        if (result.error === 'unknown-zone') {
+            windowHtml = `<div class="card-cd none" style="color:#e57373">지역명 오류</div>`
+                       + `<div class="card-when">'${escapeHtml(fish.zone)}' 미정의</div>`;
+        } else if (result.error === 'no-conditions') {
+            windowHtml = `<div class="card-cd none">조건 미상</div>`
+                       + `<div class="card-when">조건 확인</div>`;
+        } else if (result.error === 'no-match') {
+            windowHtml = `<div class="card-cd none">30일 내 없음</div>`
+                       + `<div class="card-when">날씨명 확인</div>`;
         } else {
-            cdHtml = `<div class="card-cd none">없음</div>`;
-            whenHtml = `<div class="card-when">조건 확인</div>`;
+            const wins = result.windows;
+            isActive = wins[0].isActive;
+            windowHtml = renderCardWindow(wins[0], now, 'primary');
+            if (wins.length >= 2) {
+                windowHtml += `<div class="card-window-divider"></div>`
+                            + renderCardWindow(wins[1], now, 'secondary');
+            }
         }
 
         html += `
@@ -824,8 +960,7 @@ function renderCards(data, now) {
                     <div class="card-zone-loc">${escapeHtml(fish.zone)}<span class="sep">·</span><span class="loc">${escapeHtml(fish.location || '—')}</span></div>
                 </div>
                 <div class="card-window">
-                    ${cdHtml}
-                    ${whenHtml}
+                    ${windowHtml}
                 </div>
             </div>
             <div class="card-cond">
