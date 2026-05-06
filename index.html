@@ -162,7 +162,7 @@ table.fish-table thead th {
     padding: 0.7rem 0.6rem;
     text-align: left;
     border-bottom: 1px solid var(--border);
-    white-space: 지금rap;
+    white-space: nowrap;
 }
 
 table.fish-table tbody td {
@@ -182,13 +182,13 @@ table.fish-table tbody tr.active {
 }
 
 .cell-name { font-weight: 700; color: var(--text); font-size: 0.92rem; }
-.cell-zone { color: var(--gold-bright); font-size: 0.85rem; white-space: 지금rap; }
+.cell-zone { color: var(--gold-bright); font-size: 0.85rem; white-space: nowrap; }
 .cell-loc { color: var(--text-muted); font-size: 0.82rem; }
 .cell-cond { font-size: 0.82rem; }
 .cell-cond .et { color: var(--text); }
 .cell-cond .arrow { color: var(--gold-dim); margin: 0 0.2em; }
 .cell-cond .weather { color: var(--gold-bright); }
-.cell-cond .지금rap { white-space: 지금rap; }
+.cell-cond .nowrap { white-space: nowrap; }
 .cell-bait { color: var(--text-muted); font-size: 0.82rem; }
 .cell-intuition { color: var(--text-muted); font-size: 0.78rem; }
 .cell-lure { text-align: center; }
@@ -273,7 +273,7 @@ table.fish-table tbody tr.active {
     font-weight: 700;
     color: var(--gold);
     line-height: 1.2;
-    white-space: 지금rap;
+    white-space: nowrap;
 }
 .card-cd.active {
     color: var(--green-bright);
@@ -677,7 +677,7 @@ function formatRealTime(unix) {
 
 function formatCountdown(seconds) {
     seconds = Math.max(0, seconds);
-    if (seconds < 1) return "지금";
+    if (seconds < 1) return "now";
     if (seconds < 60) return `${Math.floor(seconds)}초`;
     if (seconds < 3600) {
         const m = Math.floor(seconds / 60);
