@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0d0b08">
+<title>FF14 7.5 터주 트래커</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+    --bg: #0c0a07;
+    --surface: #1a1612;
+    --surface-2: #25201a;
+    --border: #332c22;
+    --border-bright: #5a4a30;
+    --gold: #d4a857;
+    --gold-bright: #f4c87a;
+    --gold-dim: #6e5e3c;
+    --green: #6fd58a;
+    --green-glow: rgba(111, 213, 138, 0.12);
+    --green-bright: #8fe5a8;
+    --text: #f0e8d8;
+    --text-muted: #998a72;
+    --text-dim: #5b5345;
+    --shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html { font-size: 16px; }
+body {
+    font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    background-image:
+        radial-gradient(at 15% -5%, rgba(212, 168, 87, 0.10) 0%, transparent 45%),
+        radial-gradient(at 85% 100%, rgba(180, 130, 60, 0.06) 0%, transparent 50%);
+    background-attachment: fixed;
+    color: var(--text);
+    min-height: 100vh;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-feature-settings: "tnum"; }
+
+.container {
+    max-width: 1480px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+}
+
+/* ─── Header ─────────────────────────────────── */
+header { margin-bottom: 1.75rem; }
+
+.title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.25rem;
+}
+
+h1 {
+    font-size: 1.4rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--text);
+}
+h1 .accent { color: var(--gold); }
+
+.subtitle {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+.subtitle::before {
+    content: '●';
+    color: var(--green);
+    margin-right: 0.4rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+.clocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.clock {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1.1rem;
+    position: relative;
+    overflow: hidden;
+}
+.clock::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 1rem; right: 1rem; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold-dim), transparent);
+}
+
+.clock-label {
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    margin-bottom: 0.4rem;
+    font-weight: 600;
+}
+
+.clock-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+
+.clock-sub {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.35rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── Desktop table ─────────────────────────── */
+.table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+}
+
+table.fish-table {
+    display: none;
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+
+table.fish-table thead th {
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    padding: 0.7rem 0.6rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+table.fish-table tbody td {
+    padding: 0.85rem 0.6rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+table.fish-table tbody tr:last-child td { border-bottom: none; }
+
+table.fish-table tbody tr {
+    transition: background 0.3s ease;
+}
+
+table.fish-table tbody tr.active {
+    background: var(--green-glow);
+    box-shadow: inset 3px 0 0 var(--green);
+}
+
+.cell-name { font-weight: 700; color: var(--text); font-size: 0.92rem; }
+.cell-zone { color: var(--gold-bright); font-size: 0.85rem; white-space: nowrap; }
+.cell-loc { color: var(--text-muted); font-size: 0.82rem; }
+.cell-cond { font-size: 0.82rem; }
+.cell-cond .et { color: var(--text); }
+.cell-cond .arrow { color: var(--gold-dim); margin: 0 0.2em; }
+.cell-cond .weather { color: var(--gold-bright); }
+.cell-cond .nowrap { white-space: nowrap; }
+.cell-bait { color: var(--text-muted); font-size: 0.82rem; }
+.cell-intuition { color: var(--text-muted); font-size: 0.78rem; }
+.cell-lure { text-align: center; }
+.cell-lure.has-lure { color: var(--gold-bright); font-weight: 700; }
+.cell-lure.no-lure { color: var(--text-dim); }
+.cell-bite-time { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--text-muted); }
+.cell-bite { font-weight: 700; color: var(--gold); text-align: center; }
+.cell-hookset { font-size: 0.82rem; color: var(--text-muted); }
+
+.cell-window { min-width: 160px; }
+.window-rel {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--gold);
+    font-size: 0.92rem;
+    line-height: 1.2;
+}
+.window-rel.active {
+    color: var(--green-bright);
+}
+.window-rel.active::before {
+    content: '🟢 ';
+}
+.window-abs {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── Mobile cards ─────────────────────────── */
+.cards { display: block; }
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 0.7rem;
+    position: relative;
+    box-shadow: var(--shadow);
+    transition: border-color 0.3s;
+}
+
+.card.active {
+    border-color: var(--green);
+    background:
+        linear-gradient(180deg, var(--green-glow) 0%, transparent 60%),
+        var(--surface);
+}
+
+.card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+}
+
+.card-name {
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+}
+
+.card-zone-loc {
+    font-size: 0.78rem;
+    color: var(--gold-bright);
+    margin-top: 0.2rem;
+}
+.card-zone-loc .sep { color: var(--text-dim); margin: 0 0.4em; }
+.card-zone-loc .loc { color: var(--text-muted); }
+
+.card-window {
+    text-align: right;
+    flex-shrink: 0;
+}
+.card-cd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+.card-cd.active {
+    color: var(--green-bright);
+}
+.card-cd.active::before {
+    content: '🟢 ';
+}
+.card-cd.none {
+    color: var(--text-dim);
+    font-weight: 500;
+}
+.card-when {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.2rem;
+}
+
+.card-cond {
+    font-size: 0.83rem;
+    color: var(--text);
+    padding: 0.6rem 0.75rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 6px;
+    margin-bottom: 0.7rem;
+}
+.card-cond .arrow { color: var(--gold-dim); margin: 0 0.3em; }
+.card-cond .weather { color: var(--gold-bright); font-weight: 600; }
+.card-cond .et { color: var(--text-muted); }
+
+.card-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.55rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.meta-item {
+    min-width: 0;
+}
+.meta-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+}
+.meta-value {
+    color: var(--text);
+    font-size: 0.85rem;
+    word-break: keep-all;
+}
+.meta-value.muted { color: var(--text-dim); }
+.meta-value.lure-yes { color: var(--gold-bright); font-weight: 700; }
+
+/* ─── Empty state ─────────────────────────── */
+.empty {
+    background: var(--surface);
+    border: 1px dashed var(--border-bright);
+    border-radius: 10px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+.empty h2 {
+    color: var(--gold);
+    font-size: 1.1rem;
+    margin-bottom: 0.5rem;
+}
+.empty code {
+    background: var(--surface-2);
+    color: var(--gold-bright);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+}
+
+/* ─── Footer ─────────────────────────────── */
+footer {
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ─── Breakpoints ─────────────────────────── */
+@media (min-width: 1100px) {
+    table.fish-table { display: table; }
+    .cards { display: none; }
+}
+
+@media (max-width: 1099px) {
+    .table-wrap { background: transparent; border: none; box-shadow: none; }
+}
+
+@media (max-width: 600px) {
+    h1 { font-size: 1.15rem; }
+    .clock-value { font-size: 1.35rem; }
+    .container { padding: 1.25rem 1rem 3rem; }
+    .clock { padding: 0.7rem 0.9rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+    <div class="title-row">
+        <h1><span class="accent">FF14 7.5</span> 터주 트래커</h1>
+        <span class="subtitle">실시간 자동 갱신</span>
+    </div>
+    <div class="clocks">
+        <div class="clock">
+            <div class="clock-label">에오르제아 시간</div>
+            <div class="clock-value mono" id="et-clock">--:--:--</div>
+            <div class="clock-sub" id="slot-et">현재 슬롯</div>
+        </div>
+        <div class="clock">
+            <div class="clock-label">슬롯 남은 시간</div>
+            <div class="clock-value mono" id="slot-remaining">--:--</div>
+            <div class="clock-sub" id="real-time">--:--:--</div>
+        </div>
+    </div>
+</header>
+
+<main>
+    <div class="table-wrap">
+        <table class="fish-table">
+            <thead>
+                <tr>
+                    <th>물고기</th>
+                    <th>지역</th>
+                    <th>위치</th>
+                    <th>시간 / 날씨</th>
+                    <th>미끼</th>
+                    <th>직감</th>
+                    <th>루어</th>
+                    <th>입질시간</th>
+                    <th>입질</th>
+                    <th>채기</th>
+                    <th>다음 윈도우</th>
+                </tr>
+            </thead>
+            <tbody id="fish-tbody"></tbody>
+        </table>
+        <div class="cards" id="fish-cards"></div>
+    </div>
+</main>
+
+<footer>
+    1 ET hour = 175s · 슬롯 = 8 ET시간 (23분 20초) · 무한 lookahead
+</footer>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// CONFIG  ─  여기를 본인 데이터로 수정하세요
+// ════════════════════════════════════════════════════════════════════
+
+const TIMEZONE_OFFSET = 9;  // KST=9, UTC=0, 미서부=-8
+
+// 지역별 날씨 확률표
+// 형식: [[누적확률, 날씨이름], ...]
+// ※ 헤리티지 파인드는 본인 데이터에 없어서 추측 — 필요시 수정
+const ZONES = {
+    "오르코 파차":      [[20,"쾌청"],[50,"맑음"],[70,"흐림"],[80,"안개"],[90,"바람"],[100,"눈"]],
+    "코자말루 카":      [[25,"쾌청"],[60,"맑음"],[75,"흐림"],[85,"안개"],[95,"비"],[100,"폭우"]],
+    "야크텔 밀림":      [[15,"쾌청"],[55,"맑음"],[70,"흐림"],[85,"안개"],[100,"비"]],
+    "샬로니 황야":      [[5,"쾌청"],[50,"맑음"],[70,"흐림"],[85,"모래먼지"],[100,"폭풍"]],
+    "헤리티지 파운드":   [[5,"맑음"],[25,"흐림"],[40,"안개"],[45,"비"],[50,"뇌우"],[100,"방전"]],
+    "리빙 메모리":      [[10,"비"],[20,"안개"],[40,"흐림"],[100,"맑음"]]
+};
+
+// 8마리 터주 정보
+// - etStart === etEnd === 0 이고 weathers/prevWeathers 모두 비어있으면 "조건 미상" 표시
+// - lure: 거대한 루어 필요 시 true
+const FISH = [
+    {
+        name: "오레오레오레",
+        zone: "오르코 파차",
+        location: "치와구 염지",
+        etStart: 0, etEnd: 2,
+        weathers: ["눈"],
+        prevWeathers: ["흐림"],
+        bait: "흰지렁이",
+        intuition: "",
+        lure: true,
+        biteTime: "18~32초",
+        bite: "!!!",
+        hookset: "강력한"
+    },
+    {
+        name: "검은 옥시도라스",
+        zone: "코자말루 카",
+        location: "미야카벡 상류",
+        etStart: 0, etEnd: 0,
+        weathers: [],
+        prevWeathers: [],
+        bait: "",
+        intuition: "",
+        lure: false,
+        biteTime: "",
+        bite: "",
+        hookset: ""
+    },
+    {
+        name: "큰삽주둥이 메기",
+        zone: "코자말루 카",
+        location: "리가카 석호",
+        etStart: 4, etEnd: 6,
+        weathers: ["흐림"],
+        prevWeathers: ["비"],
+        bait: "포퍼 루어",
+        intuition: "",
+        lure: false,
+        biteTime: "",
+        bite: "!!!",
+        hookset: "강력한"
+    },
+    {
+        name: "이지러진 잔받침",
+        zone: "야크텔 밀림",
+        location: "세노테 쟈윤쟈",
+        etStart: 16, etEnd: 21,
+        weathers: ["비"],
+        prevWeathers: ["쾌청"],
+        bait: "완벽한 잔받침(생미끼)",
+        intuition: "",
+        lure: false,
+        biteTime: "",
+        bite: "!!!",
+        hookset: "강력한"
+    },
+    {
+        name: "왕족 가지메기",
+        zone: "야크텔 밀림",
+        location: "단물 세노테",
+        etStart: 16, etEnd: 18,
+        weathers: ["안개"],
+        prevWeathers: ["비"],
+        bait: "붉은 구더기",
+        intuition: "",
+        lure: false,
+        biteTime: "",
+        bite: "!!!",
+        hookset: "강력한"
+    },
+    {
+        name: "쓴껍질 돌악어",
+        zone: "야크텔 밀림",
+        location: "쓴물 세노테",
+        etStart: 0, etEnd: 0,
+        weathers: [],
+        prevWeathers: [],
+        bait: "",
+        intuition: "",
+        lure: false,
+        biteTime: "",
+        bite: "",
+        hookset: ""
+    },
+    {
+        name: "심혈 망령",
+        zone: "샬로니 황야",
+        location: "조고 해협 서쪽",
+        etStart: 6, etEnd: 8,
+        weathers: ["흐림"],
+        prevWeathers: ["폭풍"],
+        bait: "잠자리",
+        intuition: "폭포 망령 ×3 (5분 내)",
+        lure: false,
+        biteTime: "",
+        bite: "!!!",
+        hookset: "강력한"
+    },
+    {
+        name: "빛무태상어",
+        zone: "리빙 메모리",
+        location: "커낼타운 북쪽",
+        etStart: 8, etEnd: 13,
+        weathers: ["안개"],
+        prevWeathers: ["흐림"],
+        bait: "유령 새우",
+        intuition: "",
+        lure: false,
+        biteTime: "10~18초",
+        bite: "!!!",
+        hookset: "강력한"
+    }
+];
+
+// ════════════════════════════════════════════════════════════════════
+// END CONFIG  ─  아래는 수정 불필요
+// ════════════════════════════════════════════════════════════════════
+
+
+/* ─── Weather algorithm ─────────────────── */
+function getWeatherChance(unix) {
+    const bell = Math.floor(unix / 175);
+    const increment = (bell + 8 - bell % 8) % 24;
+    const totalDays = Math.floor(unix / 4200);
+    const calcBase = ((totalDays * 100 + increment) >>> 0);
+    const shifted = ((calcBase << 11) >>> 0);
+    const step1 = (shifted ^ calcBase) >>> 0;
+    const step2 = ((step1 >>> 8) ^ step1) >>> 0;
+    return step2 % 100;
+}
+
+function getWeather(zone, unix) {
+    const chance = getWeatherChance(unix);
+    const table = ZONES[zone];
+    if (!table) return "??";
+    for (const [threshold, weather] of table) {
+        if (chance < threshold) return weather;
+    }
+    return table[table.length - 1][1];
+}
+
+function getSlotStartUnix(unix) {
+    return Math.floor(unix / 1400) * 1400;
+}
+
+function getSlotETStart(slotUnix) {
+    const bell = Math.floor(slotUnix / 175);
+    const etHour = bell % 24;
+    return etHour - (etHour % 8);
+}
+
+function matchesFish(fish, slotUnix) {
+    if (!ZONES[fish.zone]) return false;
+
+    const weather = getWeather(fish.zone, slotUnix);
+    const prevWeather = getWeather(fish.zone, slotUnix - 1400);
+
+    if (fish.weathers && fish.weathers.length > 0 && !fish.weathers.includes(weather)) return false;
+    if (fish.prevWeathers && fish.prevWeathers.length > 0 && !fish.prevWeathers.includes(prevWeather)) return false;
+
+    const slotETStart = getSlotETStart(slotUnix);
+    const slotETEnd = slotETStart + 8;
+
+    if (fish.etStart <= fish.etEnd) {
+        if (!(fish.etStart < slotETEnd && fish.etEnd > slotETStart)) return false;
+    } else {
+        if (!(slotETEnd > fish.etStart || slotETStart < fish.etEnd)) return false;
+    }
+
+    return true;
+}
+
+function findNextWindow(fish, now) {
+    if (!ZONES[fish.zone]) {
+        return { error: 'unknown-zone' };
+    }
+
+    // "조건 미상" 케이스: etStart === etEnd 이고 날씨 조건도 없음
+    const noTimeConstraint = fish.etStart === fish.etEnd;
+    const noWeatherConstraint = (!fish.weathers || fish.weathers.length === 0)
+                              && (!fish.prevWeathers || fish.prevWeathers.length === 0);
+    if (noTimeConstraint && noWeatherConstraint) {
+        return { error: 'no-conditions' };
+    }
+
+    const currentSlot = getSlotStartUnix(now);
+    // ~30일 lookahead — 매우 희귀한 조건 처리용
+    for (let i = 0; i < 1900; i++) {
+        const slot = currentSlot + i * 1400;
+        if (matchesFish(fish, slot)) {
+            return { slot, isActive: i === 0 };
+        }
+    }
+    return { error: 'no-match' };
+}
+
+/* ─── Format helpers ─────────────────── */
+function pad(n, w = 2) { return String(Math.floor(n)).padStart(w, '0'); }
+
+function formatET(unix) {
+    const totalEtSec = Math.floor(unix * (3600 / 175));
+    const h = Math.floor(totalEtSec / 3600) % 24;
+    const m = Math.floor(totalEtSec / 60) % 60;
+    const s = totalEtSec % 60;
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function formatETBlock(slotUnix) {
+    const start = getSlotETStart(slotUnix);
+    const end = start + 8;
+    return `슬롯 ET ${pad(start)}:00 — ${pad(end === 24 ? 24 : end % 24)}:00`;
+}
+
+function formatRealTime(unix) {
+    const d = new Date((unix + TIMEZONE_OFFSET * 3600) * 1000);
+    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+}
+
+function formatCountdown(seconds) {
+    seconds = Math.max(0, seconds);
+    if (seconds < 1) return "지금";
+    if (seconds < 60) return `${Math.floor(seconds)}초`;
+    if (seconds < 3600) {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}분 ${pad(s)}초`;
+    }
+    if (seconds < 86400) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h}시간 ${m}분`;
+    }
+    const d = Math.floor(seconds / 86400);
+    const h = Math.floor((seconds % 86400) / 3600);
+    return `${d}일 ${h}시간`;
+}
+
+const DAYS_KR = ['일','월','화','수','목','금','토'];
+
+function formatAbsoluteTime(unix) {
+    const d = new Date((unix + TIMEZONE_OFFSET * 3600) * 1000);
+    return `${d.getUTCMonth() + 1}/${pad(d.getUTCDate())} (${DAYS_KR[d.getUTCDay()]}) ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+}
+
+function formatSlotRemaining(now) {
+    const slotStart = getSlotStartUnix(now);
+    const remaining = (slotStart + 1400) - now;
+    const m = Math.floor(remaining / 60);
+    const s = Math.floor(remaining % 60);
+    return `${pad(m)}:${pad(s)}`;
+}
+
+function formatETRange(fish) {
+    if (fish.etStart === 0 && fish.etEnd === 24) return '전 시간';
+    return `${pad(fish.etStart)}:00–${pad(fish.etEnd)}:00`;
+}
+
+function formatWeatherCondition(fish) {
+    const w = (fish.weathers && fish.weathers.length > 0) ? fish.weathers.join(', ') : '아무';
+    if (fish.prevWeathers && fish.prevWeathers.length > 0) {
+        const pw = fish.prevWeathers.join(', ');
+        return `<span class="weather">${escapeHtml(pw)}</span><span class="arrow">→</span><span class="weather">${escapeHtml(w)}</span>`;
+    }
+    return `<span class="weather">${escapeHtml(w)}</span>`;
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+/* ─── Render ─────────────────── */
+function buildFishData(now) {
+    return FISH.map(fish => ({
+        fish,
+        next: findNextWindow(fish, now)
+    })).sort((a, b) => {
+        // 활성 fish가 가장 위로
+        const aActive = a.next?.isActive;
+        const bActive = b.next?.isActive;
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        // 다음으로 시간이 가까운 것
+        const aSlot = a.next?.slot ?? Infinity;
+        const bSlot = b.next?.slot ?? Infinity;
+        if (aSlot !== bSlot) return aSlot - bSlot;
+        // 마지막은 원래 순서 유지 (조건 미상 등)
+        return 0;
+    });
+}
+
+function renderTable(data, now) {
+    const tbody = document.getElementById('fish-tbody');
+    let html = '';
+    for (const { fish, next } of data) {
+        const isActive = next?.isActive;
+        let cdHtml, whenHtml, rowClass = '';
+
+        if (next?.error === 'unknown-zone') {
+            cdHtml = `<div class="window-rel" style="color:#e57373">지역명 오류</div>`;
+            whenHtml = `<div class="window-abs">'${escapeHtml(fish.zone)}' 미정의</div>`;
+            rowClass = 'unknown';
+        } else if (next?.error === 'no-conditions') {
+            cdHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">조건 미상</div>`;
+            whenHtml = `<div class="window-abs">조건 확인 후 입력</div>`;
+            rowClass = 'unknown';
+        } else if (next?.error === 'no-match') {
+            cdHtml = `<div class="window-rel" style="color:var(--text-muted);font-weight:500">30일 내 없음</div>`;
+            whenHtml = `<div class="window-abs">날씨명 확인 필요</div>`;
+            rowClass = 'unknown';
+        } else if (isActive) {
+            const remaining = (next.slot + 1400) - now;
+            cdHtml = `<div class="window-rel active">${escapeHtml(formatCountdown(remaining))} 남음</div>`;
+            whenHtml = `<div class="window-abs">현재 슬롯 종료까지</div>`;
+            rowClass = 'active';
+        } else {
+            const seconds = next.slot - now;
+            cdHtml = `<div class="window-rel">${escapeHtml(formatCountdown(seconds))} 뒤</div>`;
+            whenHtml = `<div class="window-abs">${escapeHtml(formatAbsoluteTime(next.slot))}</div>`;
+        }
+
+        html += `
+        <tr class="${rowClass}">
+            <td class="cell-name">${escapeHtml(fish.name)}</td>
+            <td class="cell-zone">${escapeHtml(fish.zone)}</td>
+            <td class="cell-loc">${escapeHtml(fish.location || '—')}</td>
+            <td class="cell-cond"><span class="nowrap et">${escapeHtml(formatETRange(fish))}</span> · ${formatWeatherCondition(fish)}</td>
+            <td class="cell-bait">${escapeHtml(fish.bait || '—')}</td>
+            <td class="cell-intuition">${escapeHtml(fish.intuition || '—')}</td>
+            <td class="cell-lure ${fish.lure ? 'has-lure' : 'no-lure'}">${fish.lure ? '🎣 거대' : 'X'}</td>
+            <td class="cell-bite-time">${escapeHtml(fish.biteTime || '—')}</td>
+            <td class="cell-bite">${escapeHtml(fish.bite || '—')}</td>
+            <td class="cell-hookset">${escapeHtml(fish.hookset || '—')}</td>
+            <td class="cell-window">${cdHtml}${whenHtml}</td>
+        </tr>`;
+    }
+    tbody.innerHTML = html;
+}
+
+function renderCards(data, now) {
+    const container = document.getElementById('fish-cards');
+    let html = '';
+    for (const { fish, next } of data) {
+        const isActive = next?.isActive;
+        let cdHtml, whenHtml;
+        if (next) {
+            if (isActive) {
+                const remaining = (next.slot + 1400) - now;
+                cdHtml = `<div class="card-cd active">${escapeHtml(formatCountdown(remaining))} 남음</div>`;
+                whenHtml = `<div class="card-when">현재 슬롯 종료까지</div>`;
+            } else {
+                const seconds = next.slot - now;
+                cdHtml = `<div class="card-cd">${escapeHtml(formatCountdown(seconds))} 뒤</div>`;
+                whenHtml = `<div class="card-when">${escapeHtml(formatAbsoluteTime(next.slot))}</div>`;
+            }
+        } else {
+            cdHtml = `<div class="card-cd none">없음</div>`;
+            whenHtml = `<div class="card-when">조건 확인</div>`;
+        }
+
+        html += `
+        <div class="card ${isActive ? 'active' : ''}">
+            <div class="card-top">
+                <div>
+                    <div class="card-name">${escapeHtml(fish.name)}</div>
+                    <div class="card-zone-loc">${escapeHtml(fish.zone)}<span class="sep">·</span><span class="loc">${escapeHtml(fish.location || '—')}</span></div>
+                </div>
+                <div class="card-window">
+                    ${cdHtml}
+                    ${whenHtml}
+                </div>
+            </div>
+            <div class="card-cond">
+                <span class="et">${escapeHtml(formatETRange(fish))}</span> · ${formatWeatherCondition(fish)}
+            </div>
+            <div class="card-meta">
+                <div class="meta-item">
+                    <div class="meta-label">미끼</div>
+                    <div class="meta-value ${fish.bait ? '' : 'muted'}">${escapeHtml(fish.bait || '—')}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">직감</div>
+                    <div class="meta-value ${fish.intuition ? '' : 'muted'}">${escapeHtml(fish.intuition || '—')}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">루어</div>
+                    <div class="meta-value ${fish.lure ? 'lure-yes' : 'muted'}">${fish.lure ? '🎣 거대한 루어' : '—'}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">입질시간</div>
+                    <div class="meta-value">${escapeHtml(fish.biteTime || '—')}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">입질</div>
+                    <div class="meta-value">${escapeHtml(fish.bite || '—')}</div>
+                </div>
+                <div class="meta-item">
+                    <div class="meta-label">낚아채기</div>
+                    <div class="meta-value">${escapeHtml(fish.hookset || '—')}</div>
+                </div>
+            </div>
+        </div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderEmpty() {
+    const tbody = document.getElementById('fish-tbody');
+    const cards = document.getElementById('fish-cards');
+    const empty = `
+        <div class="empty">
+            <h2>터주 데이터를 입력해주세요</h2>
+            <p>HTML 파일을 열어 <code>FISH</code> 배열에 8마리를 추가하세요.</p>
+        </div>`;
+    tbody.innerHTML = `<tr><td colspan="11" style="padding:0">${empty}</td></tr>`;
+    cards.innerHTML = empty;
+}
+
+let lastSlot = -1;
+let lastActiveSig = '';
+
+function tick() {
+    const now = Date.now() / 1000;
+
+    // Always update the clocks
+    document.getElementById('et-clock').textContent = formatET(now);
+    document.getElementById('slot-et').textContent = formatETBlock(getSlotStartUnix(now));
+    document.getElementById('slot-remaining').textContent = formatSlotRemaining(now);
+    document.getElementById('real-time').textContent = formatRealTime(now);
+
+    if (FISH.length === 0) {
+        renderEmpty();
+        return;
+    }
+
+    // Re-render fish list every second (simple, fast for 8 rows)
+    const data = buildFishData(now);
+    renderTable(data, now);
+    renderCards(data, now);
+}
+
+tick();
+setInterval(tick, 1000);
+</script>
+</body>
+</html>
