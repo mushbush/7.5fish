@@ -500,6 +500,7 @@ const ZONES = {
 };
 
 // 8마리 터주 정보
+// - etStart, etEnd: ET 시간 (정수 또는 소수 가능). 예: 5.5 = ET 5:30, 6.25 = ET 6:15
 // - etStart === etEnd === 0 이고 weathers/prevWeathers 모두 비어있으면 "조건 미상" 표시
 // - lure: 거대한 루어 필요 시 true
 const FISH = [
@@ -675,12 +676,50 @@ function matchesFish(fish, slotUnix) {
     return true;
 }
 
+// 매칭되는 슬롯에서, fish의 ET 시간 범위와 교집합을 unix 단위로 계산
+function getSlotWindowBounds(fish, slotUnix) {
+    const slotETStart = getSlotETStart(slotUnix);
+    const slotETEnd = slotETStart + 8;
+    // ET 1시간 = 175초
+    // 기본: 슬롯 자체 = [slotUnix, slotUnix + 1400)
+
+    // ET 시간 제약 없음 (0-24)이면 슬롯 전체
+    if (fish.etStart === 0 && fish.etEnd === 24) {
+        return { start: slotUnix, end: slotUnix + 1400 };
+    }
+
+    if (fish.etStart <= fish.etEnd) {
+        // 일반적인 케이스 (wrap 없음)
+        const overlapStart = Math.max(slotETStart, fish.etStart);
+        const overlapEnd = Math.min(slotETEnd, fish.etEnd);
+        const startOffset = (overlapStart - slotETStart) * 175;
+        const endOffset = (overlapEnd - slotETStart) * 175;
+        return { start: slotUnix + startOffset, end: slotUnix + endOffset };
+    } else {
+        // wrap 케이스 (예: ET 22-2). 슬롯 안에서 매칭되는 ET 부분 찾기
+        // 슬롯 ET [slotETStart, slotETEnd) 와 fish ET [etStart, 24) ∪ [0, etEnd)의 교집합
+        const ranges = [];
+        // [etStart, 24) 와의 교집합
+        const a = Math.max(slotETStart, fish.etStart);
+        const b = Math.min(slotETEnd, 24);
+        if (a < b) ranges.push([a, b]);
+        // [0, etEnd) 와의 교집합
+        const c = Math.max(slotETStart, 0);
+        const d = Math.min(slotETEnd, fish.etEnd);
+        if (c < d) ranges.push([c, d]);
+        if (ranges.length === 0) return { start: slotUnix, end: slotUnix + 1400 };
+        // 단순화: 첫 범위만 사용 (실제로 슬롯이 8시간이라 두 범위가 동시 발생 안 함)
+        const [s, e] = ranges[0];
+        return { start: slotUnix + (s - slotETStart) * 175, end: slotUnix + (e - slotETStart) * 175 };
+    }
+}
+
 function findWindows(fish, now, maxWindows = 2) {
     if (!ZONES[fish.zone]) {
         return { error: 'unknown-zone' };
     }
 
-    // "조건 미상" 케이스: etStart === etEnd 이고 날씨 조건도 없음
+    // "조건 미상" 케이스
     const noTimeConstraint = fish.etStart === fish.etEnd;
     const noWeatherConstraint = (!fish.weathers || fish.weathers.length === 0)
                               && (!fish.prevWeathers || fish.prevWeathers.length === 0);
@@ -690,42 +729,40 @@ function findWindows(fish, now, maxWindows = 2) {
 
     const currentSlot = getSlotStartUnix(now);
     const windows = [];
-    let inWindow = false;
-    let winStart = null;
 
-    // ~30일 lookahead
+    // ~30일 lookahead. i=-1부터 시작해서 지금 진행 중인 wrap 윈도우의 앞부분도 포함.
     const totalSlots = 1900;
-    for (let i = 0; i < totalSlots; i++) {
+    const limit = maxWindows + 1;
+    for (let i = -1; i < totalSlots; i++) {
         const slot = currentSlot + i * 1400;
-        const matches = matchesFish(fish, slot);
+        if (!matchesFish(fish, slot)) continue;
 
-        if (matches && !inWindow) {
-            winStart = slot;
-            inWindow = true;
-        } else if (!matches && inWindow) {
-            // 윈도우 끝남 (이 슬롯은 안 맞음)
+        const bounds = getSlotWindowBounds(fish, slot);
+
+        const last = windows[windows.length - 1];
+        if (last && Math.abs(last.end - bounds.start) < 0.01) {
+            // 직전 윈도우와 연속 → 확장 (합치기)
+            last.end = bounds.end;
+            last.isActive = last.start <= now && now < last.end;
+        } else {
+            // 새 윈도우 시작. 직전 윈도우는 이제 확정됨.
+            // 확정된 직전 윈도우가 완전히 과거이면 제거.
+            if (last && last.end <= now) {
+                windows.pop();
+            }
             windows.push({
-                start: winStart,
-                end: slot,  // exclusive
-                isActive: winStart === currentSlot
+                start: bounds.start,
+                end: bounds.end,
+                isActive: bounds.start <= now && now < bounds.end
             });
-            inWindow = false;
-            if (windows.length >= maxWindows) return { windows };
         }
+
+        if (windows.length >= limit) break;
     }
 
-    // 30일 끝까지 윈도우 안에 있으면 잘려서 종료
-    if (inWindow) {
-        windows.push({
-            start: winStart,
-            end: currentSlot + totalSlots * 1400,
-            isActive: winStart === currentSlot,
-            truncated: true
-        });
-    }
-
-    if (windows.length === 0) return { error: 'no-match' };
-    return { windows };
+    const finalWindows = windows.slice(0, maxWindows);
+    if (finalWindows.length === 0) return { error: 'no-match' };
+    return { windows: finalWindows };
 }
 
 /* ─── Format helpers ─────────────────── */
@@ -784,9 +821,15 @@ function formatSlotRemaining(now) {
     return `${pad(m)}:${pad(s)}`;
 }
 
+function formatETHour(value) {
+    const h = Math.floor(value);
+    const m = Math.round((value - h) * 60);
+    return `${pad(h)}:${pad(m)}`;
+}
+
 function formatETRange(fish) {
     if (fish.etStart === 0 && fish.etEnd === 24) return '전 시간';
-    return `${pad(fish.etStart)}:00–${pad(fish.etEnd)}:00`;
+    return `${formatETHour(fish.etStart)}–${formatETHour(fish.etEnd)}`;
 }
 
 function formatWeatherCondition(fish) {
